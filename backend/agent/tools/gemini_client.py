@@ -22,13 +22,13 @@ logger = logging.getLogger(__name__)
 
 # Fallback candidate models in order of priority
 CANDIDATE_MODELS = [
-    os.getenv("GEMINI_MODEL", "gemini-3.7-flash"),
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
+    os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     "gemini-3.5-flash",
-    "gemini-flash-latest",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-2.5-pro",
 ]
 # Remove duplicates while preserving order
 _UNIQUE_MODELS = list(dict.fromkeys(CANDIDATE_MODELS))
@@ -59,6 +59,9 @@ def get_gemini_client(model_name: Optional[str] = None) -> genai.GenerativeModel
     )
 
 
+import asyncio
+
+
 async def gemini_generate(prompt: str, system_prompt: Optional[str] = None) -> str:
     """
     Generate a response from Gemini with automatic fallback across available models.
@@ -74,7 +77,8 @@ async def gemini_generate(prompt: str, system_prompt: Optional[str] = None) -> s
     for model_name in models_to_try:
         try:
             client = get_gemini_client(model_name=model_name)
-            response = client.generate_content(full_prompt)
+            # Run in worker thread to prevent blocking FastAPI asyncio loop
+            response = await asyncio.to_thread(client.generate_content, full_prompt)
             if response and response.text:
                 _working_model_name = model_name
                 return response.text
@@ -154,7 +158,7 @@ async def gemini_chat(
                 system_instruction=system_prompt or default_system,
             )
             chat = model.start_chat(history=history)
-            response = chat.send_message(user_message)
+            response = await asyncio.to_thread(chat.send_message, user_message)
             if response and response.text:
                 _working_model_name = model_name
                 return response.text
@@ -164,4 +168,5 @@ async def gemini_chat(
             continue
 
     raise RuntimeError(f"All Gemini chat models failed. Last error: {last_err}")
+
 

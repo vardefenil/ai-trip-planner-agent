@@ -44,9 +44,10 @@ app.include_router(chat.router, prefix="/api", tags=["Chat"])
 async def root():
     return {
         "status": "running",
-        "message": "AI Travel Planner Agent API is live 🚀",
+        "message": "AI Travel Planner Agent API is live",
         "docs": "/docs",
     }
+
 
 
 @app.get("/health")
