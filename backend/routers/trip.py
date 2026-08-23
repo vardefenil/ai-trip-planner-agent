@@ -10,8 +10,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from agent.graph import run_travel_pipeline
 from agent.state import TravelAgentState
+import database
 
 router = APIRouter()
 
@@ -45,7 +45,6 @@ async def plan_trip(request: PlanTripRequest):
             })
 
             # Run the pipeline
-            # We'll emit progress events by running stages manually
             from agent.state import TravelAgentState
             from agent.nodes.parse_budget import parse_and_allocate_budget
             from agent.nodes.stay_search import stay_search
@@ -61,9 +60,18 @@ async def plan_trip(request: PlanTripRequest):
                 conversation_history=request.conversation_history or [],
             )
 
+            # Save initial session in database
+            await database.save_session(session_id, f"Trip: {request.query[:35]}")
+
             # Stage 1: Parse & Budget
             yield _sse_event("stage_start", {"stage": "parsing", "message": "🔍 Parsing your trip request..."})
             state = await parse_and_allocate_budget(state)
+            if state.parsed_trip:
+                await database.save_session(
+                    session_id,
+                    f"Trip to {state.parsed_trip.destination} ({state.parsed_trip.duration_days}D)",
+                    state.parsed_trip.destination,
+                )
             yield _sse_event("stage_done", {
                 "stage": "parsing",
                 "data": {
@@ -134,6 +142,18 @@ async def plan_trip(request: PlanTripRequest):
                 },
                 "logs": state.stage_logs[-1:],
             })
+
+            # Save full packages message to database
+            packages_data = [p.model_dump() for p in state.presented_packages]
+            booking_data = state.booking_summary.model_dump() if state.booking_summary else None
+            await database.save_message(
+                session_id=session_id,
+                message_id=str(uuid.uuid4()),
+                role="assistant",
+                content=f"Here are your {len(packages_data)} personalised trip packages for {state.parsed_trip.destination if state.parsed_trip else 'your trip'}!",
+                msg_type="packages",
+                payload={"packages": packages_data, "booking_summary": booking_data},
+            )
 
             # Final complete event
             yield _sse_event("complete", {

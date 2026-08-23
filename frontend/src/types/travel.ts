@@ -120,3 +120,11 @@ export interface SSEEvent {
   session_id?: string;
   full_state?: Record<string, unknown>;
 }
+
+export interface SavedSession {
+  id: string;
+  title: string;
+  destination?: string;
+  created_at: string;
+  updated_at: string;
+}

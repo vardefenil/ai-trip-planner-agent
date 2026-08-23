@@ -59,3 +59,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# SQLite fallback database
+*.db
+backend/yatra_fallback.db

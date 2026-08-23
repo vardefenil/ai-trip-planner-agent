@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 # Fallback candidate models in order of priority
 CANDIDATE_MODELS = [
-    os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-3.6-flash",
-    "gemini-3.7-flash",
+    os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
     "gemini-2.5-pro",
 ]
 # Remove duplicates while preserving order

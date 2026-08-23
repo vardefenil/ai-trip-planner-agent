@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PackageCard } from '@/components/PackageCard';
 import { BookingSummaryView } from '@/components/BookingSummaryView';
 import { PipelineProgress } from '@/components/PipelineProgress';
-import { sendChat, streamTripPlan } from '@/lib/api';
+import { sendChat, streamTripPlan, fetchSessions, fetchSessionMessages, deleteSessionApi } from '@/lib/api';
 import type {
   ChatMessage,
   TripPackage,
@@ -14,6 +14,7 @@ import type {
   ParsedTrip,
   BudgetAllocation,
   SSEEvent,
+  SavedSession,
 } from '@/types/travel';
 
 const INITIAL_STAGES: PipelineStage[] = [
@@ -25,40 +26,53 @@ const INITIAL_STAGES: PipelineStage[] = [
 ];
 
 const SUGGESTIONS = [
-  { icon: '🏖️', text: 'Plan a 5-day Goa trip for 2, budget ₹35,000' },
   { icon: '🏔️', text: '7-day Manali adventure for 1 person, ₹25,000' },
+  { icon: '🏖️', text: '5-day Goa trip for 2, budget ₹35,000' },
   { icon: '🌴', text: 'Kerala backwaters trip, 6 days, ₹40,000 for couple' },
   { icon: '🏰', text: 'Rajasthan heritage tour, 8 days, ₹60,000' },
   { icon: '🏝️', text: 'Andaman Islands 5 days for 2, ₹55,000' },
   { icon: '🌄', text: 'Ladakh trip, 10 days, ₹80,000 for 2' },
 ];
 
-export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: `Namaste! 🙏 I am **Yatra AI**, your personal Indian travel planning assistant.\n\nTell me where you'd like to go, your budget, and how many days — and I'll build you **5 custom trip packages** with hotels, transport, and day-by-day itineraries.\n\nYou can also ask me anything about travel in India! 🌏`,
-      timestamp: new Date(),
-      type: 'text',
-    },
-  ]);
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content: `Namaste! 🙏 I am **Yatra AI**, your luxury Indian travel planner.\n\nTell me your dream destination, budget, and trip length — and I will generate **5 custom packages** with hotels, transport, and day-by-day itineraries.\n\nYou can also ask me anything about travel in India! 🌏`,
+  timestamp: new Date(),
+  type: 'text',
+};
 
+export default function ChatPage() {
+  const [messages, setMessages]                 = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput]                       = useState('');
   const [isLoading, setIsLoading]               = useState(false);
-  const [sessionId, setSessionId]               = useState<string | null>(null);
+  const [sessionId, setSessionId]               = useState<string>(() => uuidv4());
   const [stages, setStages]                     = useState<PipelineStage[]>(INITIAL_STAGES);
   const [isPlanningMode, setIsPlanningMode]     = useState(false);
+  const [savedSessions, setSavedSessions]       = useState<SavedSession[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const stopStreamRef  = useRef<(() => void) | null>(null);
+
+  // Load saved sessions from PostgreSQL in Docker on mount
+  const refreshSessions = useCallback(async () => {
+    const list = await fetchSessions();
+    setSavedSessions(list);
+  }, []);
+
+  useEffect(() => {
+    refreshSessions();
+  }, [refreshSessions]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   const addMessage = useCallback((msg: Omit<ChatMessage, 'id' | 'timestamp'>) => {
     setMessages((prev) => [...prev, { ...msg, id: uuidv4(), timestamp: new Date() }]);
@@ -76,6 +90,42 @@ export default function ChatPage() {
   const resetStages = useCallback(() => {
     setStages(INITIAL_STAGES.map((s) => ({ ...s, status: 'idle' })));
   }, []);
+
+  // Start new session
+  const handleNewSession = () => {
+    const newId = uuidv4();
+    setSessionId(newId);
+    setMessages([WELCOME_MESSAGE]);
+    resetStages();
+    setIsPlanningMode(false);
+    setIsLoading(false);
+    if (stopStreamRef.current) stopStreamRef.current();
+  };
+
+  // Load existing session
+  const handleSelectSession = async (s: SavedSession) => {
+    setSessionId(s.id);
+    resetStages();
+    setIsPlanningMode(false);
+    setIsLoading(true);
+    const history = await fetchSessionMessages(s.id);
+    if (history.length > 0) {
+      setMessages(history);
+    } else {
+      setMessages([WELCOME_MESSAGE]);
+    }
+    setIsLoading(false);
+  };
+
+  // Delete a session
+  const handleDeleteSession = async (e: React.MouseEvent, sid: string) => {
+    e.stopPropagation();
+    await deleteSessionApi(sid);
+    if (sessionId === sid) {
+      handleNewSession();
+    }
+    refreshSessions();
+  };
 
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
@@ -121,7 +171,7 @@ export default function ChatPage() {
         if (packages.length > 0) {
           addMessage({
             role: 'assistant',
-            content: `Here are your ${packages.length} personalised trip packages! Scroll through to explore each one.`,
+            content: `Here are your ${packages.length} personalised trip packages! Scroll through the cards below and use the photo arrows to explore each place.`,
             type: 'packages',
             packages,
             bookingSummary: bookingSummary ?? undefined,
@@ -131,6 +181,7 @@ export default function ChatPage() {
         setIsPlanningMode(false);
         setIsLoading(false);
         if (event.session_id) setSessionId(event.session_id);
+        refreshSessions();
       }
 
       if (type === 'error') {
@@ -144,7 +195,7 @@ export default function ChatPage() {
         resetStages();
       }
     },
-    [addMessage, updateStage, resetStages]
+    [addMessage, updateStage, resetStages, refreshSessions]
   );
 
   const handleSend = useCallback(async () => {
@@ -162,6 +213,7 @@ export default function ChatPage() {
     try {
       const chatResponse = await sendChat(query, sessionId, history);
       if (chatResponse.session_id) setSessionId(chatResponse.session_id);
+      refreshSessions();
 
       if (chatResponse.is_trip_request) {
         addMessage({ role: 'assistant', content: chatResponse.response, type: 'text' });
@@ -177,7 +229,10 @@ export default function ChatPage() {
             setIsLoading(false);
             setIsPlanningMode(false);
           },
-          () => setIsLoading(false)
+          () => {
+            setIsLoading(false);
+            refreshSessions();
+          }
         );
       } else {
         addMessage({ role: 'assistant', content: chatResponse.response, type: 'text' });
@@ -186,12 +241,12 @@ export default function ChatPage() {
     } catch {
       addMessage({
         role: 'assistant',
-        content: 'Could not connect to the server. Make sure the backend is running on port 8000.',
+        content: 'Could not connect to the server. Make sure the backend is running.',
         type: 'text',
       });
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, sessionId, addMessage, resetStages, handleSSEEvent]);
+  }, [input, isLoading, messages, sessionId, addMessage, resetStages, handleSSEEvent, refreshSessions]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -222,22 +277,53 @@ export default function ChatPage() {
           <div className="logo-icon-wrap">🌏</div>
           <div>
             <div className="logo-title">Yatra AI</div>
-            <div className="logo-sub">India Travel Planner</div>
+            <div className="logo-sub">Luxury India Travel</div>
           </div>
         </div>
 
+        {/* New Trip Button */}
+        <button className="new-session-btn" onClick={handleNewSession}>
+          <span className="btn-plus">✨</span>
+          <span>New Trip Plan</span>
+        </button>
+
         <div className="sidebar-divider" />
 
-        {(isPlanningMode || stages.some((s) => s.status !== 'idle')) && (
-          <div className="sidebar-pipeline">
-            <div className="sidebar-section-title">Planning Pipeline</div>
-            <PipelineProgress stages={stages} />
+        {/* Saved Sessions in Docker DB */}
+        {savedSessions.length > 0 && (
+          <div className="sidebar-sessions-section">
+            <div className="sidebar-section-title">Saved Trips & Chats</div>
+            <div className="sessions-list">
+              {savedSessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`session-item ${s.id === sessionId ? 'active' : ''}`}
+                  onClick={() => handleSelectSession(s)}
+                >
+                  <span className="session-icon">🗺️</span>
+                  <span className="session-title">{s.title}</span>
+                  <button
+                    className="session-del-btn"
+                    onClick={(e) => handleDeleteSession(e, s.id)}
+                    title="Delete Conversation"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {!isPlanningMode && (
+        {/* Pipeline or Quick Start */}
+        {(isPlanningMode || stages.some((s) => s.status !== 'idle')) ? (
+          <div className="sidebar-pipeline">
+            <div className="sidebar-section-title">Live Planning Pipeline</div>
+            <PipelineProgress stages={stages} />
+          </div>
+        ) : (
           <>
-            <div className="sidebar-section-title">Quick Start</div>
+            <div className="sidebar-section-title">Popular Trips</div>
             <div className="suggestions-list">
               {SUGGESTIONS.map((s) => (
                 <button
@@ -245,7 +331,8 @@ export default function ChatPage() {
                   className="suggestion-btn"
                   onClick={() => handleSuggestion(s.text)}
                 >
-                  {s.icon} {s.text}
+                  <span className="sugg-icon">{s.icon}</span>
+                  <span>{s.text}</span>
                 </button>
               ))}
             </div>
@@ -253,8 +340,10 @@ export default function ChatPage() {
         )}
 
         <div className="sidebar-footer">
-          <div className="powered-by">Powered by Google Gemini</div>
-          <div className="powered-sub">LangGraph · FastAPI · Next.js</div>
+          <div className="docker-badge">
+            <span className="docker-dot" /> PostgreSQL in Docker Active
+          </div>
+          <div className="powered-by">LangGraph · Gemini · Next.js</div>
         </div>
       </aside>
 
@@ -265,18 +354,18 @@ export default function ChatPage() {
           <div className="header-left">
             <div className="header-icon-wrap">✈️</div>
             <div>
-              <h1 className="header-title">AI Travel Planner</h1>
-              <div className="header-sub">India&apos;s smartest trip planning assistant</div>
+              <h1 className="header-title">Yatra AI Travel Planner</h1>
+              <div className="header-sub">Personalised 5-package itineraries with real stays & transport</div>
             </div>
           </div>
           <div className="header-status">
             <span className={`status-dot ${isLoading ? 'active' : ''}`} />
-            <span className="status-text">{isLoading ? 'Planning...' : 'Ready'}</span>
+            <span className="status-text">{isLoading ? 'AI Agent Planning...' : 'Agent Ready'}</span>
           </div>
         </header>
 
         {/* Messages */}
-        <div className="messages-container">
+        <div className="messages-container" ref={messagesContainerRef}>
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} onBookPackage={handleBookPackage} />
           ))}
@@ -292,13 +381,13 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
+        {/* Input Area */}
         <div className="input-container">
           <div className="input-wrapper">
             <textarea
               ref={inputRef}
               className="chat-input"
-              placeholder="Describe your dream India trip... (e.g. Plan a 5-day Goa trip for ₹30,000)"
+              placeholder="Describe your dream India trip... (e.g. Plan a 7-day Manali adventure for ₹25,000)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -309,6 +398,7 @@ export default function ChatPage() {
               className={`send-btn ${isLoading ? 'loading' : ''}`}
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
+              title="Send Message"
             >
               {isLoading
                 ? <span className="send-spinner">⟳</span>
@@ -317,7 +407,7 @@ export default function ChatPage() {
             </button>
           </div>
           <div className="input-hint">
-            Press Enter to send &middot; Shift+Enter for new line
+            Press Enter to send &middot; Shift+Enter for new line &middot; Stored in Docker Database
           </div>
         </div>
       </main>
@@ -375,7 +465,7 @@ function MessageBubble({ message, onBookPackage }: MessageBubbleProps) {
       <div className={`msg-bubble ${isUser ? 'user' : 'assistant'}`}>
         <MarkdownText text={message.content} />
         <div className="msg-time">
-          {message.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(message.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
       {isUser && <div className="msg-avatar user-avatar">👤</div>}

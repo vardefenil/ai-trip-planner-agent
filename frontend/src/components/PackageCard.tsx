@@ -2,7 +2,7 @@
 
 import { TripPackage } from '@/types/travel';
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
+import { getPackageHeroPhoto, getDestinationPhotos, getStayPhoto, PlacePhoto } from '@/lib/images';
 
 interface PackageCardProps {
   pkg: TripPackage;
@@ -13,11 +13,11 @@ interface PackageCardProps {
 }
 
 const TIER_CLASSES: Record<string, string> = {
-  budget:    'tier-budget',
+  budget:      'tier-budget',
   'mid-range': 'tier-mid',
-  premium:   'tier-premium',
-  adventure: 'tier-adventure',
-  unique:    'tier-unique',
+  premium:     'tier-premium',
+  adventure:   'tier-adventure',
+  unique:      'tier-unique',
 };
 
 const TRANSPORT_ICONS: Record<string, string> = {
@@ -28,54 +28,13 @@ const RENTAL_ICONS: Record<string, string> = {
   scooter: '🛵', motorcycle: '🏍️', bicycle: '🚲', car: '🚗',
 };
 
-// Curated Unsplash destination hero images (landscape, travel-grade)
-const DESTINATION_HERO: Record<string, string> = {
-  goa:       'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80',
-  manali:    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&q=80',
-  kerala:    'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80',
-  rajasthan: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&q=80',
-  ladakh:    'https://images.unsplash.com/photo-1571401835393-8c5f35328320?w=800&q=80',
-  andaman:   'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80',
-  shimla:    'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&q=80',
-  ooty:      'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80',
-  varanasi:  'https://images.unsplash.com/photo-1561361058-c24e01c735db?w=800&q=80',
-  agra:      'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=800&q=80',
-  mumbai:    'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=800&q=80',
-  delhi:     'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=800&q=80',
-  jaipur:    'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&q=80',
-  beach:     'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
-  mountain:  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-  default:   'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=800&q=80',
-};
-
-// Hotel/stay images from Unsplash
-const STAY_IMAGES: Record<string, string> = {
-  resort:  'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=600&q=80',
-  hotel:   'https://images.unsplash.com/photo-1455587734955-081b22074882?w=600&q=80',
-  hostel:  'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=600&q=80',
-  airbnb:  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&q=80',
-  lodge:   'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=600&q=80',
-  default: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=600&q=80',
-};
-
-function getDestinationImage(destination: string, vibe: string): string {
-  const key = destination?.toLowerCase().split(' ')[0];
-  if (key && DESTINATION_HERO[key]) return DESTINATION_HERO[key];
-  if (vibe && DESTINATION_HERO[vibe.toLowerCase()]) return DESTINATION_HERO[vibe.toLowerCase()];
-  return DESTINATION_HERO.default;
-}
-
-function getStayImage(stayType: string): string {
-  return STAY_IMAGES[stayType?.toLowerCase()] ?? STAY_IMAGES.default;
-}
-
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="stars-wrap">
       {[1, 2, 3, 4, 5].map((i) => (
         <span key={i} className={`star ${i <= Math.round(rating) ? 'filled' : 'empty'}`}>★</span>
       ))}
-      <span style={{ fontSize: '10px', color: 'var(--text-3)', marginLeft: 4 }}>{rating.toFixed(1)}</span>
+      <span className="rating-num">{rating.toFixed(1)}</span>
     </div>
   );
 }
@@ -103,29 +62,62 @@ function BudgetRing({ pct, tierClass }: { pct: number; tierClass: string }) {
 
 export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: PackageCardProps) {
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [photoIndex, setPhotoIndex] = useState<number>(index % 5);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const tierClass = TIER_CLASSES[pkg.tier] ?? 'tier-mid';
 
-  // IntersectionObserver for scroll-triggered animation
+  // Get gallery for destination
+  const destinationGallery = getDestinationPhotos(
+    `${pkg.stay?.address || ''} ${pkg.title} ${pkg.tagline}`,
+    pkg.title
+  );
+
+  // Set default photo based on index
+  const currentPhoto: PlacePhoto = destinationGallery[photoIndex % destinationGallery.length] ||
+    getPackageHeroPhoto(pkg.stay?.address || '', index, pkg.title);
+
+  const stayImg = getStayPhoto(pkg.stay?.type || '', pkg.stay?.name || '', index);
+
+  // IntersectionObserver for scroll-triggered animation attached to the scrollable chat container
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
+
+    const scrollContainer = document.querySelector('.messages-container');
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true);
-          observer.disconnect();
         }
       },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+      {
+        root: scrollContainer,
+        threshold: 0.08,
+        rootMargin: '50px 0px 50px 0px',
+      }
     );
+
     observer.observe(el);
+    // Trigger immediately if already in view
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setIsVisible(true);
+    }
+
     return () => observer.disconnect();
   }, []);
 
-  const heroImg = getDestinationImage(pkg.stay?.address ?? '', pkg.tier);
-  const stayImg = getStayImage(pkg.stay?.type ?? 'hotel');
+  const handleNextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotoIndex((prev) => (prev + 1) % destinationGallery.length);
+  };
+
+  const handlePrevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotoIndex((prev) => (prev - 1 + destinationGallery.length) % destinationGallery.length);
+  };
 
   return (
     <div
@@ -133,19 +125,32 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
       className={`package-card ${tierClass} ${isSelected ? 'selected' : ''} ${isVisible ? 'card-visible' : ''} stagger-${index % 5}`}
       onClick={() => onSelect?.(pkg)}
     >
-      {/* Hero Image */}
+      {/* Hero Image & Place Gallery */}
       <div className="card-hero">
         <img
-          src={heroImg}
-          alt={`${pkg.title} destination`}
+          key={currentPhoto.url}
+          src={currentPhoto.url}
+          alt={currentPhoto.caption}
           className="card-hero-img"
           loading="lazy"
         />
         <div className="card-hero-overlay" />
+
+        {/* Badges */}
         <div className="card-hero-badges">
           <div className="card-tier-badge">{pkg.tier.toUpperCase()}</div>
-          <div className="card-pkg-num">#{pkg.package_id}</div>
+          <div className="card-pkg-num">Option #{pkg.package_id}</div>
         </div>
+
+        {/* Photo Gallery Navigation & Caption */}
+        <div className="card-photo-controls">
+          <button className="photo-nav-btn" onClick={handlePrevPhoto} title="Previous Place Photo">‹</button>
+          <div className="photo-caption-pill">
+            <span className="photo-pin">📍</span> {currentPhoto.caption}
+          </div>
+          <button className="photo-nav-btn" onClick={handleNextPhoto} title="Next Place Photo">›</button>
+        </div>
+
         <div className="card-hero-bottom">
           <h3 className="card-title">{pkg.title}</h3>
           <p className="card-tagline">{pkg.tagline}</p>
@@ -154,7 +159,7 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
 
       {/* Card Body */}
       <div className="card-body">
-        {/* Cost */}
+        {/* Cost & Budget Ring */}
         <div className="card-cost">
           <div className="cost-left">
             <div className="cost-amount">₹{pkg.total_cost.toLocaleString('en-IN')}</div>
@@ -163,14 +168,13 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
           <BudgetRing pct={pkg.budget_utilisation_pct} tierClass={tierClass} />
         </div>
 
-        {/* Stay */}
+        {/* Stay Section */}
         <div className="card-section">
           <div className="section-header">
             <div className="section-icon stay">🏨</div>
-            <span className="section-label">Stay</span>
+            <span className="section-label">Stay Option</span>
           </div>
           <div className="section-body">
-            {/* Stay image */}
             <div className="stay-img-wrap">
               <img
                 src={stayImg}
@@ -196,7 +200,7 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
           </div>
         </div>
 
-        {/* Transport */}
+        {/* Transport Section */}
         <div className="card-section">
           <div className="section-header">
             <div className="section-icon transport">{TRANSPORT_ICONS[pkg.transport.mode] ?? '🚗'}</div>
@@ -209,12 +213,12 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
               <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>⏱ {pkg.transport.duration}</span>
             </div>
             {pkg.transport.departure_time && (
-              <div className="option-address">🕐 {pkg.transport.departure_time}</div>
+              <div className="option-address">🕐 Departure: {pkg.transport.departure_time}</div>
             )}
           </div>
         </div>
 
-        {/* Rental */}
+        {/* Rental Section */}
         {pkg.rental && (
           <div className="card-section">
             <div className="section-header">
@@ -246,7 +250,7 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
           <p>{pkg.why_this_one}</p>
         </div>
 
-        {/* Itinerary */}
+        {/* Itinerary Accordion */}
         <div className="itinerary-section">
           <div className="itinerary-header">
             <span className="itinerary-label">📅 Day-by-Day Itinerary</span>
@@ -265,7 +269,6 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
                 <span className="day-cost">₹{day.estimated_cost.toLocaleString('en-IN')}</span>
                 <span className={`day-chevron ${expandedDay === day.day ? 'open' : ''}`}>▼</span>
               </button>
-              {/* Smooth CSS transition accordion */}
               <div className={`day-details ${expandedDay === day.day ? 'open' : ''}`}>
                 <div className="day-details-inner">
                   <div className="day-activities-list">
@@ -278,7 +281,7 @@ export function PackageCard({ pkg, index = 0, isSelected, onSelect, onBook }: Pa
                     ))}
                   </div>
                   <div className="day-meals-list">
-                    <div className="day-section-label">Meals</div>
+                    <div className="day-section-label">Meals & Food</div>
                     {day.meals.map((meal, i) => (
                       <div key={i} className="meal-item">
                         <span className="meal-dot" />

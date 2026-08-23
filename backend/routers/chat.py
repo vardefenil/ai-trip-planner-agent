@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from agent.tools.gemini_client import gemini_chat
+import database
 
 router = APIRouter()
 
@@ -64,10 +65,30 @@ async def chat(request: ChatRequest):
         suggested_query = await _extract_trip_query(request.message, history)
 
     try:
+        # Save user message to database
+        user_msg_id = str(uuid.uuid4())
+        await database.save_message(
+            session_id=session_id,
+            message_id=user_msg_id,
+            role="user",
+            content=request.message,
+            msg_type="text",
+        )
+
         response_text = await gemini_chat(
             conversation_history=history,
             user_message=request.message,
             system_prompt=YATRA_SYSTEM_PROMPT,
+        )
+
+        # Save assistant response to database
+        assistant_msg_id = str(uuid.uuid4())
+        await database.save_message(
+            session_id=session_id,
+            message_id=assistant_msg_id,
+            role="assistant",
+            content=response_text,
+            msg_type="text",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI error: {str(e)}")

@@ -2,10 +2,11 @@
 AI Travel Planning Agent — FastAPI Backend
 """
 import os
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 _backend_env = Path(__file__).resolve().parent / ".env"
 if _backend_env.exists():
@@ -14,13 +15,23 @@ else:
     load_dotenv(find_dotenv())
 load_dotenv()
 
+import database
+from routers import trip, chat, sessions
 
-from routers import trip, chat
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize Database (PostgreSQL / SQLite fallback)
+    await database.init_db()
+    yield
+    # Shutdown
+
 
 app = FastAPI(
     title="AI Travel Planner Agent",
     description="An AI-powered travel planning agent that creates personalised India trip packages",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Allow frontend to call backend
@@ -38,6 +49,7 @@ app.add_middleware(
 
 app.include_router(trip.router, prefix="/api", tags=["Trip Planning"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
+app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
 
 
 @app.get("/")
@@ -47,7 +59,6 @@ async def root():
         "message": "AI Travel Planner Agent API is live",
         "docs": "/docs",
     }
-
 
 
 @app.get("/health")
