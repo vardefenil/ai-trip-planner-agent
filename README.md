@@ -1,8 +1,8 @@
 # 🌏 Yatra AI — India Travel Planner Agent
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Visit_Yatra_AI-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://ai-trip-planner-agent.vercel.app)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](http://localhost:8000/docs)
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](http://localhost:3000)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Visit_Yatra_AI-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://ai-trip-planner-agent-two.vercel.app)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://ai-trip-planner-agent-2ipq.onrender.com/docs)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://ai-trip-planner-agent-two.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 An intelligent, AI-powered travel planning agent that creates **5 personalised India trip packages** from a single natural-language request with live SSE streaming, interactive budget allocation, day-by-day itineraries, and deep-link bookings.
@@ -11,8 +11,9 @@ An intelligent, AI-powered travel planning agent that creates **5 personalised I
 
 ## 🚀 Live Demo & Deployment
 
-- **Frontend Demo (Vercel)**: [https://ai-trip-planner-agent.vercel.app](https://ai-trip-planner-agent.vercel.app)
-- **Backend API (Swagger Docs)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Frontend Live Demo (Vercel)**: **[https://ai-trip-planner-agent-two.vercel.app](https://ai-trip-planner-agent-two.vercel.app)**
+- **Backend API Docs (Render)**: **[https://ai-trip-planner-agent-2ipq.onrender.com/docs](https://ai-trip-planner-agent-2ipq.onrender.com/docs)**
+- **GitHub Repository**: **[https://github.com/vardefenil/ai-trip-planner-agent](https://github.com/vardefenil/ai-trip-planner-agent)**
 
 > **Note**: To deploy your own live copy:
 > 1. Deploy the FastAPI backend on **[Render](https://render.com)** or **[Railway](https://railway.app)** and set your `GEMINI_API_KEY` & `GOOGLE_PLACES_API_KEY`.
