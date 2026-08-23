@@ -34,15 +34,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow frontend to call backend
+# Allow frontend to call backend (Vercel, Localhost, and any custom domain)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        os.getenv("FRONTEND_URL", "http://localhost:3000"),
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -52,7 +48,7 @@ app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {
         "status": "running",
@@ -61,6 +57,7 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "healthy"}
+
