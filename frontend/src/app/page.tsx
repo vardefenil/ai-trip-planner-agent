@@ -17,20 +17,20 @@ import type {
 } from '@/types/travel';
 
 const INITIAL_STAGES: PipelineStage[] = [
-  { id: 'parsing', label: 'Parsing Request', icon: '🔍', status: 'idle' },
-  { id: 'searching', label: 'Searching Options', icon: '🌐', status: 'idle' },
-  { id: 'ranking', label: 'Building Itinerary', icon: '🎯', status: 'idle' },
-  { id: 'presenting', label: 'Preparing Packages', icon: '📦', status: 'idle' },
-  { id: 'booking', label: 'Booking Summary', icon: '🎉', status: 'idle' },
+  { id: 'parsing',    label: 'Parsing Request',     icon: '🔍', status: 'idle' },
+  { id: 'searching',  label: 'Searching Options',   icon: '🌐', status: 'idle' },
+  { id: 'ranking',    label: 'Building Itinerary',  icon: '🎯', status: 'idle' },
+  { id: 'presenting', label: 'Preparing Packages',  icon: '📦', status: 'idle' },
+  { id: 'booking',    label: 'Booking Summary',     icon: '🎉', status: 'idle' },
 ];
 
-const SUGGESTION_PROMPTS = [
-  '🏖️ Plan a 5-day Goa trip for 2, budget ₹35,000',
-  '🏔️ 7-day Manali adventure for 1 person, ₹25,000',
-  '🌴 Kerala backwaters trip, 6 days, ₹40,000 for couple',
-  '🏰 Rajasthan heritage tour, 8 days, ₹60,000',
-  '🏝️ Andaman Islands 5 days for 2, ₹55,000',
-  '🌄 Ladakh trip, 10 days, ₹80,000 for 2',
+const SUGGESTIONS = [
+  { icon: '🏖️', text: 'Plan a 5-day Goa trip for 2, budget ₹35,000' },
+  { icon: '🏔️', text: '7-day Manali adventure for 1 person, ₹25,000' },
+  { icon: '🌴', text: 'Kerala backwaters trip, 6 days, ₹40,000 for couple' },
+  { icon: '🏰', text: 'Rajasthan heritage tour, 8 days, ₹60,000' },
+  { icon: '🏝️', text: 'Andaman Islands 5 days for 2, ₹55,000' },
+  { icon: '🌄', text: 'Ladakh trip, 10 days, ₹80,000 for 2' },
 ];
 
 export default function ChatPage() {
@@ -38,120 +38,114 @@ export default function ChatPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Namaste! 🙏 I am **Yatra AI**, your personal Indian travel planning assistant.\n\nTell me where you would like to go, your budget, and how many days — and I will build you **5 custom trip packages** with hotels, transport, and day-by-day itineraries.\n\nYou can also ask me anything about travel in India! 🌏`,
+      content: `Namaste! 🙏 I am **Yatra AI**, your personal Indian travel planning assistant.\n\nTell me where you'd like to go, your budget, and how many days — and I'll build you **5 custom trip packages** with hotels, transport, and day-by-day itineraries.\n\nYou can also ask me anything about travel in India! 🌏`,
       timestamp: new Date(),
       type: 'text',
     },
   ]);
 
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [stages, setStages] = useState<PipelineStage[]>(INITIAL_STAGES);
-  const [isPlanningMode, setIsPlanningMode] = useState(false);
+  const [input, setInput]                       = useState('');
+  const [isLoading, setIsLoading]               = useState(false);
+  const [sessionId, setSessionId]               = useState<string | null>(null);
+  const [stages, setStages]                     = useState<PipelineStage[]>(INITIAL_STAGES);
+  const [isPlanningMode, setIsPlanningMode]     = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const stopStreamRef = useRef<(() => void) | null>(null);
+  const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const stopStreamRef  = useRef<(() => void) | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   const addMessage = useCallback((msg: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    setMessages((prev) => [
-      ...prev,
-      { ...msg, id: uuidv4(), timestamp: new Date() },
-    ]);
+    setMessages((prev) => [...prev, { ...msg, id: uuidv4(), timestamp: new Date() }]);
   }, []);
 
-  const updateStage = useCallback((stageId: string, status: PipelineStage['status'], message?: string) => {
-    setStages((prev) =>
-      prev.map((s) => (s.id === stageId ? { ...s, status, message } : s))
-    );
-  }, []);
+  const updateStage = useCallback(
+    (stageId: string, status: PipelineStage['status'], message?: string) => {
+      setStages((prev) =>
+        prev.map((s) => (s.id === stageId ? { ...s, status, message } : s))
+      );
+    },
+    []
+  );
 
   const resetStages = useCallback(() => {
     setStages(INITIAL_STAGES.map((s) => ({ ...s, status: 'idle' })));
   }, []);
 
-  const handleSSEEvent = useCallback((event: SSEEvent) => {
-    const { type, stage, message, data } = event;
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      const { type, stage, message, data } = event;
 
-    if (type === 'start') {
-      setIsPlanningMode(true);
-      addMessage({
-        role: 'assistant',
-        content: 'Starting your trip planning pipeline...',
-        type: 'text',
-      });
-    }
+      if (type === 'start') {
+        setIsPlanningMode(true);
+        addMessage({ role: 'assistant', content: 'Starting your trip planning pipeline...', type: 'text' });
+      }
 
-    if (type === 'stage_start' && stage) {
-      updateStage(stage, 'running', message);
-    }
+      if (type === 'stage_start' && stage) updateStage(stage, 'running', message);
 
-    if (type === 'stage_done' && stage) {
-      updateStage(stage, 'done');
+      if (type === 'stage_done' && stage) {
+        updateStage(stage, 'done');
 
-      if (stage === 'parsing' && data) {
-        const parsedTrip = (data as { parsed_trip?: ParsedTrip; budget_allocation?: BudgetAllocation }).parsed_trip;
-        const budgetAlloc = (data as { parsed_trip?: ParsedTrip; budget_allocation?: BudgetAllocation }).budget_allocation;
-        if (parsedTrip && budgetAlloc) {
+        if (stage === 'parsing' && data) {
+          const parsedTrip  = (data as { parsed_trip?: ParsedTrip; budget_allocation?: BudgetAllocation }).parsed_trip;
+          const budgetAlloc = (data as { parsed_trip?: ParsedTrip; budget_allocation?: BudgetAllocation }).budget_allocation;
+          if (parsedTrip && budgetAlloc) {
+            addMessage({
+              role: 'assistant',
+              content: `Got it! Planning your trip to **${parsedTrip.destination}**\n\nBudget Breakdown:\n- Stay: ₹${budgetAlloc.stay.toLocaleString('en-IN')}\n- Transport: ₹${budgetAlloc.transport.toLocaleString('en-IN')}\n- Food: ₹${budgetAlloc.food.toLocaleString('en-IN')}\n- Rentals: ₹${budgetAlloc.local_rental.toLocaleString('en-IN')}`,
+              type: 'text',
+            });
+          }
+        }
+
+        if (stage === 'searching' && data) {
+          const d = data as { stays_count?: number; transports_count?: number; rentals_count?: number };
           addMessage({
             role: 'assistant',
-            content: `Got it! Planning your trip to **${parsedTrip.destination}**\n\nBudget Breakdown:\n- Stay: Rs.${budgetAlloc.stay.toLocaleString('en-IN')}\n- Transport: Rs.${budgetAlloc.transport.toLocaleString('en-IN')}\n- Food: Rs.${budgetAlloc.food.toLocaleString('en-IN')}\n- Rentals: Rs.${budgetAlloc.local_rental.toLocaleString('en-IN')}`,
+            content: `Search complete! Found ${d.stays_count ?? 0} stays, ${d.transports_count ?? 0} transport options, ${d.rentals_count ?? 0} rentals.`,
             type: 'text',
           });
         }
       }
 
-      if (stage === 'searching' && data) {
-        const d = data as { stays_count?: number; transports_count?: number; rentals_count?: number };
+      if (type === 'complete' && event.full_state) {
+        const fullState = event.full_state as Record<string, unknown>;
+        const packages  = ((fullState.presented_packages ?? fullState.ranked_packages) as TripPackage[]) ?? [];
+        const bookingSummary = fullState.booking_summary as BookingSummary | null;
+
+        if (packages.length > 0) {
+          addMessage({
+            role: 'assistant',
+            content: `Here are your ${packages.length} personalised trip packages! Scroll through to explore each one.`,
+            type: 'packages',
+            packages,
+            bookingSummary: bookingSummary ?? undefined,
+          });
+        }
+
+        setIsPlanningMode(false);
+        setIsLoading(false);
+        if (event.session_id) setSessionId(event.session_id);
+      }
+
+      if (type === 'error') {
         addMessage({
           role: 'assistant',
-          content: `Search complete! Found ${d.stays_count || 0} stays, ${d.transports_count || 0} transport options, ${d.rentals_count || 0} rentals.`,
+          content: `Something went wrong: ${message ?? 'Unknown error'}. Please try again.`,
           type: 'text',
         });
+        setIsPlanningMode(false);
+        setIsLoading(false);
+        resetStages();
       }
-    }
-
-    if (type === 'complete' && event.full_state) {
-      const fullState = event.full_state as Record<string, unknown>;
-
-      const packages = (fullState.presented_packages || fullState.ranked_packages) as TripPackage[] || [];
-      const bookingSummary = fullState.booking_summary as BookingSummary | null;
-
-      if (packages.length > 0) {
-        addMessage({
-          role: 'assistant',
-          content: `Here are your ${packages.length} personalised trip packages! Click any package to expand, or tap View Booking Details for links.`,
-          type: 'packages',
-          packages,
-          bookingSummary: bookingSummary || undefined,
-        });
-      }
-
-      setIsPlanningMode(false);
-      setIsLoading(false);
-      if (event.session_id) setSessionId(event.session_id);
-    }
-
-    if (type === 'error') {
-      addMessage({
-        role: 'assistant',
-        content: `Something went wrong: ${message || 'Unknown error'}. Please try again.`,
-        type: 'text',
-      });
-      setIsPlanningMode(false);
-      setIsLoading(false);
-      resetStages();
-    }
-  }, [addMessage, updateStage, resetStages]);
+    },
+    [addMessage, updateStage, resetStages]
+  );
 
   const handleSend = useCallback(async () => {
     const query = input.trim();
@@ -159,7 +153,6 @@ export default function ChatPage() {
 
     setInput('');
     setIsLoading(true);
-
     addMessage({ role: 'user', content: query, type: 'text' });
 
     const history = messages
@@ -171,13 +164,8 @@ export default function ChatPage() {
       if (chatResponse.session_id) setSessionId(chatResponse.session_id);
 
       if (chatResponse.is_trip_request) {
-        addMessage({
-          role: 'assistant',
-          content: chatResponse.response,
-          type: 'text',
-        });
-
-        const planQuery = chatResponse.suggested_query || query;
+        addMessage({ role: 'assistant', content: chatResponse.response, type: 'text' });
+        const planQuery = chatResponse.suggested_query ?? query;
         resetStages();
 
         stopStreamRef.current = streamTripPlan(
@@ -192,11 +180,7 @@ export default function ChatPage() {
           () => setIsLoading(false)
         );
       } else {
-        addMessage({
-          role: 'assistant',
-          content: chatResponse.response,
-          type: 'text',
-        });
+        addMessage({ role: 'assistant', content: chatResponse.response, type: 'text' });
         setIsLoading(false);
       }
     } catch {
@@ -210,14 +194,11 @@ export default function ChatPage() {
   }, [input, isLoading, messages, sessionId, addMessage, resetStages, handleSSEEvent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleSuggestion = (suggestion: string) => {
-    setInput(suggestion);
+  const handleSuggestion = (text: string) => {
+    setInput(text);
     inputRef.current?.focus();
   };
 
@@ -235,14 +216,16 @@ export default function ChatPage() {
 
   return (
     <div className="chat-root">
+      {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="logo-emoji">🌏</span>
+          <div className="logo-icon-wrap">🌏</div>
           <div>
             <div className="logo-title">Yatra AI</div>
             <div className="logo-sub">India Travel Planner</div>
           </div>
         </div>
+
         <div className="sidebar-divider" />
 
         {(isPlanningMode || stages.some((s) => s.status !== 'idle')) && (
@@ -256,9 +239,13 @@ export default function ChatPage() {
           <>
             <div className="sidebar-section-title">Quick Start</div>
             <div className="suggestions-list">
-              {SUGGESTION_PROMPTS.map((s) => (
-                <button key={s} className="suggestion-btn" onClick={() => handleSuggestion(s)}>
-                  {s}
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.text}
+                  className="suggestion-btn"
+                  onClick={() => handleSuggestion(s.text)}
+                >
+                  {s.icon} {s.text}
                 </button>
               ))}
             </div>
@@ -271,10 +258,12 @@ export default function ChatPage() {
         </div>
       </aside>
 
+      {/* ── Main Chat ───────────────────────────────────────── */}
       <main className="chat-main">
+        {/* Header */}
         <header className="chat-header">
           <div className="header-left">
-            <span className="header-emoji">✈️</span>
+            <div className="header-icon-wrap">✈️</div>
             <div>
               <h1 className="header-title">AI Travel Planner</h1>
               <div className="header-sub">India&apos;s smartest trip planning assistant</div>
@@ -286,6 +275,7 @@ export default function ChatPage() {
           </div>
         </header>
 
+        {/* Messages */}
         <div className="messages-container">
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} onBookPackage={handleBookPackage} />
@@ -293,7 +283,7 @@ export default function ChatPage() {
 
           {isLoading && (
             <div className="typing-indicator">
-              <div className="typing-avatar">🤖</div>
+              <div className="msg-avatar">🤖</div>
               <div className="typing-dots">
                 <span /><span /><span />
               </div>
@@ -302,12 +292,13 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Input */}
         <div className="input-container">
           <div className="input-wrapper">
             <textarea
               ref={inputRef}
               className="chat-input"
-              placeholder="Ask about India travel or describe your dream trip... (e.g. Plan a 5-day Goa trip for Rs.30,000)"
+              placeholder="Describe your dream India trip... (e.g. Plan a 5-day Goa trip for ₹30,000)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -319,11 +310,14 @@ export default function ChatPage() {
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
             >
-              {isLoading ? <span className="send-spinner">⟳</span> : <span>↑</span>}
+              {isLoading
+                ? <span className="send-spinner">⟳</span>
+                : <span>↑</span>
+              }
             </button>
           </div>
           <div className="input-hint">
-            Press Enter to send · Shift+Enter for new line
+            Press Enter to send &middot; Shift+Enter for new line
           </div>
         </div>
       </main>
@@ -331,6 +325,7 @@ export default function ChatPage() {
   );
 }
 
+/* ── MessageBubble ───────────────────────────────────────── */
 interface MessageBubbleProps {
   message: ChatMessage;
   onBookPackage: (pkg: TripPackage) => void;
@@ -338,7 +333,6 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message, onBookPackage }: MessageBubbleProps) {
   const isUser = message.role === 'user';
-  const [, setSelectedPkg] = useState<number | null>(null);
 
   if (message.type === 'booking' && message.bookingSummary) {
     return (
@@ -360,11 +354,12 @@ function MessageBubble({ message, onBookPackage }: MessageBubbleProps) {
             <MarkdownText text={message.content} />
           </div>
           <div className="packages-grid">
-            {message.packages.map((pkg) => (
+            {message.packages.map((pkg, idx) => (
               <PackageCard
                 key={pkg.package_id}
                 pkg={pkg}
-                onSelect={(p) => setSelectedPkg(p.package_id)}
+                index={idx}
+                onSelect={() => {}}
                 onBook={onBookPackage}
               />
             ))}

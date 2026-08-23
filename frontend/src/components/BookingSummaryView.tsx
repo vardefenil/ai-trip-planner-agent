@@ -7,15 +7,15 @@ interface BookingSummaryProps {
 }
 
 const PROVIDER_ICONS: Record<string, string> = {
-  'Booking.com': '🏨',
-  MakeMyTrip: '✈️',
-  IRCTC: '🚂',
-  RailYatri: '🚂',
+  'Booking.com':        '🏨',
+  MakeMyTrip:           '✈️',
+  IRCTC:                '🚂',
+  RailYatri:            '🚂',
   'MakeMyTrip Flights': '✈️',
-  RedBus: '🚌',
-  'Google Maps': '📍',
-  TripAdvisor: '🌟',
-  Skyscanner: '✈️',
+  RedBus:               '🚌',
+  'Google Maps':        '📍',
+  TripAdvisor:          '🌟',
+  Skyscanner:           '✈️',
 };
 
 export function BookingSummaryView({ summary }: BookingSummaryProps) {
@@ -23,20 +23,22 @@ export function BookingSummaryView({ summary }: BookingSummaryProps) {
 
   return (
     <div className="booking-summary">
-      {/* Confirmation Header */}
+      {/* Header */}
       <div className="booking-header">
         <div className="booking-emoji">🎉</div>
         <h2 className="booking-title">Your Trip is Ready!</h2>
         <p className="booking-message">{summary.confirmation_message}</p>
       </div>
 
-      {/* Selected Package Summary */}
+      {/* Package Snapshot */}
       <div className="booking-package-summary">
         <h3 className="summary-pkg-name">{pkg.title}</h3>
         <div className="summary-stats">
           <div className="stat">
             <span className="stat-label">Total Cost</span>
-            <span className="stat-value">₹{pkg.total_cost.toLocaleString('en-IN')}</span>
+            <span className="stat-value" style={{ color: 'var(--teal)', fontFamily: 'Outfit, sans-serif', fontSize: '18px', fontWeight: 800 }}>
+              ₹{pkg.total_cost.toLocaleString('en-IN')}
+            </span>
           </div>
           <div className="stat">
             <span className="stat-label">Stay</span>
@@ -46,9 +48,13 @@ export function BookingSummaryView({ summary }: BookingSummaryProps) {
             <span className="stat-label">Transport</span>
             <span className="stat-value">{pkg.transport.provider}</span>
           </div>
+          <div className="stat">
+            <span className="stat-label">Duration</span>
+            <span className="stat-value">{pkg.itinerary.length} Days</span>
+          </div>
           {pkg.rental && (
             <div className="stat">
-              <span className="stat-label">Rental</span>
+              <span className="stat-label">Local Rental</span>
               <span className="stat-value">{pkg.rental.name}</span>
             </div>
           )}
@@ -68,7 +74,7 @@ export function BookingSummaryView({ summary }: BookingSummaryProps) {
               className="booking-link-card"
             >
               <span className="link-provider-icon">
-                {PROVIDER_ICONS[link.provider] || '🔗'}
+                {PROVIDER_ICONS[link.provider] ?? '🔗'}
               </span>
               <div className="link-info">
                 <div className="link-label">{link.label}</div>
@@ -81,14 +87,12 @@ export function BookingSummaryView({ summary }: BookingSummaryProps) {
       </div>
 
       {/* Travel Tips */}
-      {summary.tips && summary.tips.length > 0 && (
+      {summary.tips?.length > 0 && (
         <div className="travel-tips">
           <h3 className="tips-title">💡 Travel Tips</h3>
           <div className="tips-list">
             {summary.tips.map((tip, i) => (
-              <div key={i} className="tip-item">
-                {tip}
-              </div>
+              <div key={i} className="tip-item">{tip}</div>
             ))}
           </div>
         </div>
