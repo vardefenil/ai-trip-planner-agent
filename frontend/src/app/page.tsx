@@ -63,8 +63,16 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    refreshSessions();
-  }, [refreshSessions]);
+    let isMounted = true;
+    fetchSessions().then((list) => {
+      if (isMounted) {
+        setSavedSessions(list);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -426,9 +434,11 @@ function MessageTime({ timestamp }: { timestamp: Date | string }) {
 
   useEffect(() => {
     const d = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-    setFormatted(
-      d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-    );
+    const str = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const timer = setTimeout(() => {
+      setFormatted(str);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [timestamp]);
 
   return (
