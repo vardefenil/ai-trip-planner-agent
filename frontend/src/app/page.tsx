@@ -421,6 +421,23 @@ interface MessageBubbleProps {
   onBookPackage: (pkg: TripPackage) => void;
 }
 
+function MessageTime({ timestamp }: { timestamp: Date | string }) {
+  const [formatted, setFormatted] = useState<string>('');
+
+  useEffect(() => {
+    const d = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    setFormatted(
+      d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    );
+  }, [timestamp]);
+
+  return (
+    <div className="msg-time" suppressHydrationWarning>
+      {formatted || ''}
+    </div>
+  );
+}
+
 function MessageBubble({ message, onBookPackage }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 
@@ -464,9 +481,7 @@ function MessageBubble({ message, onBookPackage }: MessageBubbleProps) {
       {!isUser && <div className="msg-avatar">🤖</div>}
       <div className={`msg-bubble ${isUser ? 'user' : 'assistant'}`}>
         <MarkdownText text={message.content} />
-        <div className="msg-time">
-          {new Date(message.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-        </div>
+        <MessageTime timestamp={message.timestamp} />
       </div>
       {isUser && <div className="msg-avatar user-avatar">👤</div>}
     </div>
