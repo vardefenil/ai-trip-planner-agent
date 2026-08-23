@@ -1,7 +1,7 @@
 # 🌏 Yatra AI — India Travel Planner Agent
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Visit_Yatra_AI-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://ai-trip-planner-agent-two.vercel.app)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://ai-trip-planner-agent-2ipq.onrender.com/docs)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://ai-trip-planner-agent-2lpq.onrender.com/docs)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://ai-trip-planner-agent-two.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
@@ -12,7 +12,7 @@ An intelligent, AI-powered travel planning agent that creates **5 personalised I
 ## 🚀 Live Demo & Deployment
 
 - **Frontend Live Demo (Vercel)**: **[https://ai-trip-planner-agent-two.vercel.app](https://ai-trip-planner-agent-two.vercel.app)**
-- **Backend API Docs (Render)**: **[https://ai-trip-planner-agent-2ipq.onrender.com/docs](https://ai-trip-planner-agent-2ipq.onrender.com/docs)**
+- **Backend API Docs (Render)**: **[https://ai-trip-planner-agent-2lpq.onrender.com/docs](https://ai-trip-planner-agent-2lpq.onrender.com/docs)**
 - **GitHub Repository**: **[https://github.com/vardefenil/ai-trip-planner-agent](https://github.com/vardefenil/ai-trip-planner-agent)**
 
 > **Note**: To deploy your own live copy:

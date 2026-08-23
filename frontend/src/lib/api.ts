@@ -1,6 +1,13 @@
 import type { SavedSession, ChatMessage } from '@/types/travel';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const DEFAULT_PROD_API = 'https://ai-trip-planner-agent-2lpq.onrender.com/api';
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes('localhost')
+    ? process.env.NEXT_PUBLIC_API_URL
+    : typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? DEFAULT_PROD_API
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 export async function sendChat(
   message: string,
