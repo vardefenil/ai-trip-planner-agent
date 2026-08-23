@@ -1,51 +1,89 @@
 """
-Google Gemini API client wrapper.
+Google Gemini API client wrapper with resilient automatic model fallback.
 """
 import os
 import json
 import re
-from typing import Any, Optional
+import logging
+from typing import Any, Optional, List
 import google.generativeai as genai
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
 
+# Try finding .env file in backend/ or root
+_backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env)
+else:
+    load_dotenv(find_dotenv())
 load_dotenv()
 
-_gemini_client = None
+logger = logging.getLogger(__name__)
+
+# Fallback candidate models in order of priority
+CANDIDATE_MODELS = [
+    os.getenv("GEMINI_MODEL", "gemini-3.7-flash"),
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+]
+# Remove duplicates while preserving order
+_UNIQUE_MODELS = list(dict.fromkeys(CANDIDATE_MODELS))
+_working_model_name: Optional[str] = None
 
 
-def get_gemini_client() -> genai.GenerativeModel:
-    """Returns a singleton Gemini client."""
-    global _gemini_client
-    if _gemini_client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "GEMINI_API_KEY not set. Please add it to your .env file."
-            )
-        genai.configure(api_key=api_key)
-        _gemini_client = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
-            generation_config=genai.GenerationConfig(
-                temperature=0.7,
-                top_p=0.95,
-                max_output_tokens=8192,
-            ),
-        )
-    return _gemini_client
+def _get_api_key() -> str:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not set. Please add it to your backend/.env file.")
+    return api_key
+
+
+def get_gemini_client(model_name: Optional[str] = None) -> genai.GenerativeModel:
+    """Returns a Gemini client configured with the specified or current working model."""
+    global _working_model_name
+    api_key = _get_api_key()
+    genai.configure(api_key=api_key)
+
+    chosen_model = model_name or _working_model_name or _UNIQUE_MODELS[0]
+    return genai.GenerativeModel(
+        model_name=chosen_model,
+        generation_config=genai.GenerationConfig(
+            temperature=0.7,
+            top_p=0.95,
+            max_output_tokens=8192,
+        ),
+    )
 
 
 async def gemini_generate(prompt: str, system_prompt: Optional[str] = None) -> str:
     """
-    Generate a response from Gemini given a prompt.
-    Returns the text content.
+    Generate a response from Gemini with automatic fallback across available models.
     """
-    client = get_gemini_client()
-    full_prompt = prompt
-    if system_prompt:
-        full_prompt = f"{system_prompt}\n\n{prompt}"
+    global _working_model_name
+    full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-    response = client.generate_content(full_prompt)
-    return response.text
+    # Start with the working model if known, else iterate through candidates
+    models_to_try = [_working_model_name] if _working_model_name else []
+    models_to_try += [m for m in _UNIQUE_MODELS if m != _working_model_name]
+
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            client = get_gemini_client(model_name=model_name)
+            response = client.generate_content(full_prompt)
+            if response and response.text:
+                _working_model_name = model_name
+                return response.text
+        except Exception as e:
+            logger.warning(f"Gemini model '{model_name}' failed: {e}. Trying fallback...")
+            last_err = e
+            continue
+
+    raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
 
 async def gemini_generate_json(prompt: str, system_prompt: Optional[str] = None) -> Any:
@@ -85,33 +123,45 @@ async def gemini_chat(
     system_prompt: Optional[str] = None,
 ) -> str:
     """
-    Multi-turn conversation with Gemini.
+    Multi-turn conversation with Gemini with automatic model fallback.
     conversation_history: list of {"role": "user"|"model", "content": "..."}
     """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY not set.")
+    global _working_model_name
+    api_key = _get_api_key()
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        system_instruction=system_prompt or (
-            "You are Yatra AI, a friendly and knowledgeable Indian travel planning assistant. "
-            "You help users plan amazing trips across India. You speak naturally and conversationally. "
-            "You know about Goa beaches, Himalayan treks, Kerala backwaters, Rajasthan forts, and more. "
-            "When planning trips, you consider budget, duration, traveler count, and vibe. "
-            "You respond in a warm, helpful, and enthusiastic manner."
-        ),
+    default_system = (
+        "You are Yatra AI, a friendly and knowledgeable Indian travel planning assistant. "
+        "You help users plan amazing trips across India. You speak naturally and conversationally. "
+        "You know about Goa beaches, Himalayan treks, Kerala backwaters, Rajasthan forts, and more. "
+        "When planning trips, you consider budget, duration, traveler count, and vibe. "
+        "You respond in a warm, helpful, and enthusiastic manner."
     )
 
-    # Build chat history
-    history = []
-    for msg in conversation_history:
-        history.append({
-            "role": msg["role"],
-            "parts": [msg["content"]],
-        })
+    models_to_try = [_working_model_name] if _working_model_name else []
+    models_to_try += [m for m in _UNIQUE_MODELS if m != _working_model_name]
 
-    chat = model.start_chat(history=history)
-    response = chat.send_message(user_message)
-    return response.text
+    history = [
+        {"role": msg["role"], "parts": [msg["content"]]}
+        for msg in conversation_history
+    ]
+
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_prompt or default_system,
+            )
+            chat = model.start_chat(history=history)
+            response = chat.send_message(user_message)
+            if response and response.text:
+                _working_model_name = model_name
+                return response.text
+        except Exception as e:
+            logger.warning(f"Gemini chat model '{model_name}' failed: {e}. Trying fallback...")
+            last_err = e
+            continue
+
+    raise RuntimeError(f"All Gemini chat models failed. Last error: {last_err}")
+

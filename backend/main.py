@@ -4,9 +4,16 @@ AI Travel Planning Agent — FastAPI Backend
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
 
+_backend_env = Path(__file__).resolve().parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env)
+else:
+    load_dotenv(find_dotenv())
 load_dotenv()
+
 
 from routers import trip, chat
 
