@@ -22,13 +22,15 @@ logger = logging.getLogger(__name__)
 
 # Fallback candidate models in order of priority
 CANDIDATE_MODELS = [
-    os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
-    "gemini-2.5-pro",
+    os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"),
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest",
+    "gemma-4-31b-it",
+    "gemini-3.1-pro-preview",
 ]
 # Remove duplicates while preserving order
 _UNIQUE_MODELS = list(dict.fromkeys(CANDIDATE_MODELS))
@@ -146,8 +148,12 @@ async def gemini_chat(
     models_to_try += [m for m in _UNIQUE_MODELS if m != _working_model_name]
 
     history = [
-        {"role": msg["role"], "parts": [msg["content"]]}
+        {
+            "role": "model" if msg.get("role") in ["model", "assistant"] else "user",
+            "parts": [str(msg.get("content", ""))],
+        }
         for msg in conversation_history
+        if msg.get("content")
     ]
 
     last_err = None
@@ -164,6 +170,7 @@ async def gemini_chat(
                 return response.text
         except Exception as e:
             logger.warning(f"Gemini chat model '{model_name}' failed: {e}. Trying fallback...")
+            _working_model_name = None
             last_err = e
             continue
 
