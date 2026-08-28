@@ -19,6 +19,7 @@ def get_places_key() -> str:
         )
     return key
 
+#add this all to the searching
 
 async def text_search_places(
     query: str,
