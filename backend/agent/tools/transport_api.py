@@ -48,6 +48,8 @@ BUS_DATA = {
 }
 
 
+#adding an train options 
+
 def _get_train_options(origin: str, destination: str) -> list[dict]:
     """Match train options from mock data."""
     o = origin.lower()
@@ -61,6 +63,7 @@ def _get_train_options(origin: str, destination: str) -> list[dict]:
 
     return TRAIN_DATA[("default", "default")]
 
+#adding tranportation options
 
 async def search_transport(
     origin: str,
