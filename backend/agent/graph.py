@@ -28,7 +28,7 @@ def dict_to_state(d: dict) -> TravelAgentState:
 
 
 # ────────────────────────────────────────────────────────────
-# Node wrappers (LangGraph nodes work with dicts)
+# Node wrappers (LangGraph nodes work with dicts) 
 # ────────────────────────────────────────────────────────────
 
 async def _node_parse_budget(state_dict: dict) -> dict:
@@ -104,7 +104,7 @@ async def _node_parallel_searches(state_dict: dict) -> dict:
 
 
 # ────────────────────────────────────────────────────────────
-# Build the graph
+# Build the graph and improved
 # ────────────────────────────────────────────────────────────
 
 def build_travel_graph() -> StateGraph:
