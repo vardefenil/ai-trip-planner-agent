@@ -1,5 +1,6 @@
 """
 Root entrypoint to ensure Render/PaaS hosts can launch FastAPI whether Root Directory is set to 'backend' or root '.'
+yes
 """
 import sys
 from pathlib import Path
